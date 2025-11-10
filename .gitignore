@@ -4,3 +4,7 @@
 /COVERAGE.md
 /TESTS.md
 composer.lock
+/coverage-report-final
+/coverage-report-updated
+/coverage-report
+.env.local

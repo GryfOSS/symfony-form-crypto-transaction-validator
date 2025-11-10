@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Address Validation Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Cryptocurrency Address Validation</h1>
+
+        {% if result %}
+            <div class="alert {% if result.status == 'success' %}alert-success{% else %}alert-danger{% endif %} mt-3">
+                <h4>{{ result.message }}</h4>
+                {% if result.errors %}
+                    <ul>
+                        {% for error in result.errors %}
+                            <li>{{ error }}</li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+                {% if result.data %}
+                    <p><strong>Validated:</strong> {{ result.data.crypto_type|upper }} address: {{ result.data.address }}</p>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {{ form_start(form, {'attr': {'class': 'mt-4'}}) }}
+            <div class="mb-3">
+                {{ form_row(form.crypto_type) }}
+            </div>
+            <div class="mb-3">
+                {{ form_row(form.address) }}
+            </div>
+            <div class="mb-3">
+                {{ form_row(form.submit, {'attr': {'class': 'btn btn-primary'}}) }}
+            </div>
+        {{ form_end(form) }}
+
+        <div class="mt-4">
+            <h3>Test Data</h3>
+            <h5>Valid Tron Addresses:</h5>
+            <ul>
+                <li><code>TLyqzVGLV1srkB7dToTAEqgDSfPtXRJZYH</code></li>
+                <li><code>TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</code></li>
+            </ul>
+            <h5>Valid Ethereum Addresses:</h5>
+            <ul>
+                <li><code>0x5aae5775959fbc2557cc8789bc1bf90a239d9c91</code></li>
+                <li><code>0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed</code></li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>

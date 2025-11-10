@@ -1,0 +1,214 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        php-version: ['8.1', '8.2', '8.3']
+
+    name: PHP ${{ matrix.php-version }} Tests
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-version }}
+        extensions: mbstring, xml, ctype, json, tokenizer, openssl, xdebug
+        coverage: xdebug
+
+    - name: Cache Composer packages
+      id: composer-cache
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: ${{ runner.os }}-php-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-php-${{ matrix.php-version }}-
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress --no-suggest
+
+    - name: Setup test environment
+      run: |
+        # Create test environment file
+        cat > .env.test << EOF
+        APP_ENV=test
+        APP_SECRET=test-secret-key-for-ci
+        ETHERSCAN_API_KEY=YourEtherscanApiKey
+        EOF
+
+        # Ensure test environment is available
+        cp .env.test .env
+
+    - name: Run Unit Tests with Coverage
+      env:
+        XDEBUG_MODE: coverage
+      run: |
+        echo "Running Unit Tests with Coverage..."
+        ./vendor/bin/phpunit tests/Unit --coverage-text --coverage-clover=coverage.xml --coverage-html=coverage-html
+
+    - name: Run Functional Tests (Behat)
+      env:
+        ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+      run: |
+        echo "Running Functional Tests (Behat)..."
+        # Check if ETHERSCAN_API_KEY is available for tests that require it
+        if [ -z "$ETHERSCAN_API_KEY" ]; then
+          echo "⚠️  ETHERSCAN_API_KEY not set as GitHub secret. Some functional tests may fail."
+          echo "ℹ️  To fix this, add ETHERSCAN_API_KEY to your repository secrets."
+        fi
+
+        # Run Behat tests
+        ./vendor/bin/behat --format=progress --strict || {
+          echo "❌ Functional tests failed"
+          echo "📋 Running Behat with verbose output for debugging:"
+          ./vendor/bin/behat --format=pretty --strict
+          exit 1
+        }
+
+    - name: Extract and Check Coverage
+      run: |
+        echo "Extracting coverage information..."
+
+        # Extract coverage percentage from PHPUnit coverage text output
+        COVERAGE=$(XDEBUG_MODE=coverage ./vendor/bin/phpunit tests/Unit --coverage-text --colors=never 2>/dev/null | \
+                   grep -oP 'Lines:\s+\d+\.\d+%' | \
+                   grep -oP '\d+\.\d+' | \
+                   head -1)
+
+        if [ -z "$COVERAGE" ]; then
+          echo "❌ Could not extract coverage percentage"
+          exit 1
+        fi
+
+        echo "Code coverage: ${COVERAGE}%"
+
+        # Check if coverage meets minimum requirement
+        MINIMUM_COVERAGE=80
+        COVERAGE_INT=$(echo "$COVERAGE" | cut -d'.' -f1)
+
+        if [ "$COVERAGE_INT" -ge "$MINIMUM_COVERAGE" ]; then
+          echo "✅ Code coverage ($COVERAGE%) meets the minimum requirement of ${MINIMUM_COVERAGE}%"
+        else
+          echo "❌ Code coverage ($COVERAGE%) is below the minimum requirement of ${MINIMUM_COVERAGE}%"
+          echo "Please increase test coverage to at least ${MINIMUM_COVERAGE}%"
+          exit 1
+        fi
+
+    - name: Upload coverage artifacts
+      if: matrix.php-version == '8.2'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: |
+          coverage.xml
+          coverage-html/
+
+    - name: Display test summary
+      if: always()
+      run: |
+        echo ""
+        echo "═══════════════════════════════════════"
+        echo "🧪 TEST SUMMARY - PHP ${{ matrix.php-version }}"
+        echo "═══════════════════════════════════════"
+        echo "✅ Unit Tests: Completed"
+        echo "✅ Functional Tests: Completed"
+        echo "✅ Coverage Check: Completed"
+        echo "═══════════════════════════════════════"
+
+  code-quality:
+    runs-on: ubuntu-latest
+    name: Code Quality Checks
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.2'
+        extensions: mbstring, xml, ctype, json, tokenizer, openssl
+
+    - name: Cache Composer packages
+      id: composer-cache
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: ${{ runner.os }}-php-8.2-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-php-8.2-
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress --no-suggest
+
+    - name: Check PHP syntax
+      run: |
+        echo "🔍 Checking PHP syntax..."
+        find src tests -name "*.php" -exec php -l {} \;
+        echo "✅ PHP syntax check passed"
+
+    - name: Validate composer.json
+      run: |
+        echo "📋 Validating composer.json..."
+        composer validate --strict
+        echo "✅ Composer validation passed"
+
+    - name: Check for security vulnerabilities
+      run: |
+        echo "🔒 Checking for security vulnerabilities..."
+        composer audit || {
+          echo "⚠️  Security vulnerabilities found. Please review and update dependencies."
+          exit 1
+        }
+        echo "✅ Security audit passed"
+
+  # Summary job that depends on all other jobs
+  test-summary:
+    runs-on: ubuntu-latest
+    name: Test Summary
+    needs: [tests, code-quality]
+    if: always()
+
+    steps:
+    - name: Display final results
+      run: |
+        echo "🎯 Cryptocurrency Validator Test Results"
+        echo "========================================"
+        echo ""
+
+        if [[ "${{ needs.tests.result }}" == "success" ]]; then
+          echo "✅ Unit & Functional Tests: PASSED"
+        else
+          echo "❌ Unit & Functional Tests: FAILED"
+        fi
+
+        if [[ "${{ needs.code-quality.result }}" == "success" ]]; then
+          echo "✅ Code Quality Checks: PASSED"
+        else
+          echo "❌ Code Quality Checks: FAILED"
+        fi
+
+        echo ""
+        echo "Coverage Requirements: ≥80% (checked during tests)"
+        echo "PHP Versions Tested: 8.1, 8.2, 8.3"
+        echo "========================================"
+
+        # Fail if any job failed
+        if [[ "${{ needs.tests.result }}" != "success" || "${{ needs.code-quality.result }}" != "success" ]]; then
+          echo "❌ Overall Status: FAILED"
+          exit 1
+        else
+          echo "✅ Overall Status: SUCCESS"
+        fi

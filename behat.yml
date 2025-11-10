@@ -1,0 +1,7 @@
+default:
+    suites:
+        crypto_form_validator:
+            contexts:
+                - CryptoFormContext
+            filters:
+                tags: '~@wip'
