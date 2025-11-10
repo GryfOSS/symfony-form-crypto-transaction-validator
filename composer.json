@@ -1,0 +1,32 @@
+{
+    "name": "gryfoss/symfony-form-crypto-transaction-validator",
+    "description": "Cryptocurrency hash and transaction validator for Symfony Form.",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "GryfOSS\\CryptocurrenciesFormValidator\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "IDCT Bartosz Pachołek",
+            "email": "bartosz+github@idct.tech"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "greensea/keccak": "^1.0",
+        "gryfoss/tron-api": "^1.0",
+        "symfony/validator": "^7",
+        "maslakoff/php-etherscan-api": "^1.3"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "GryfOSS\\CryptocurrenciesFormValidator\\Tests\\": "tests/"
+        }
+    }
+}
